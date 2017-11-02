@@ -1,0 +1,44 @@
+#image: pypy:latest
+image: registry.gitlab.com/kolanich-subgroups/docker-images/fixed_python:latest
+
+variables:
+  DOCKER_DRIVER: overlay2
+  SAST_ANALYZER_IMAGE_TAG: latest
+  SAST_DISABLE_DIND: "true"
+  SAST_CONFIDENCE_LEVEL: 5
+  CODECLIMATE_VERSION: latest
+
+include:
+  - template: SAST.gitlab-ci.yml
+  - template: Code-Quality.gitlab-ci.yml
+
+
+build:
+  tags:
+    - shared
+  stage: build
+  variables:
+    GIT_DEPTH: "1"
+
+  before_script:
+    - pip3 install --upgrade setuptools
+    - pip3 install --upgrade coveralls setuptools_scm
+
+  script:
+    - python3 setup.py bdist_wheel
+    - pip install --user --pre ./dist/*.whl
+    - coverage run -a --source=Pipeline -m pytest --junitxml=./rspec.xml ./tests/tests.py
+    - coveralls || true
+    - codecov || true
+
+
+  cache:
+    paths:
+      - /usr/local/site-packages
+      - /usr/local/lib/python*/site-packages
+
+  artifacts:
+    paths:
+      - dist
+    reports:
+      junit: ./rspec.xml
